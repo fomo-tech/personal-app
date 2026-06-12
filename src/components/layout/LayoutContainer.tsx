@@ -28,6 +28,23 @@ export default function LayoutContainer({ children }: { children: React.ReactNod
     fetchTransactions();
     fetchGoldHoldings();
     fetchTasks();
+
+    // Register PWA Service Worker
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      const registerSW = () => {
+        navigator.serviceWorker
+          .register('/sw.js')
+          .then((reg) => console.log('Service Worker registered successfully with scope:', reg.scope))
+          .catch((err) => console.error('Service Worker registration failed:', err));
+      };
+
+      if (document.readyState === 'complete') {
+        registerSW();
+      } else {
+        window.addEventListener('load', registerSW);
+        return () => window.removeEventListener('load', registerSW);
+      }
+    }
   }, [fetchAccounts, fetchTransactions, fetchGoldHoldings, fetchTasks, setTheme]);
 
   if (!mounted) {
