@@ -1117,6 +1117,7 @@ export default function TasksPage() {
             transform: translateY(100%);
             transition: transform var(--transition-normal);
             overflow-y: auto;
+            padding-bottom: env(safe-area-inset-bottom, 0px);
           }
 
           .tasks-side-panel.active {
@@ -1139,7 +1140,7 @@ export default function TasksPage() {
           .mobile-only-btn {
             display: flex !important;
             position: fixed;
-            bottom: calc(var(--bottom-nav-height) + 16px);
+            bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 16px);
             right: 16px;
             box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
             border-radius: var(--radius-full);
