@@ -1,0 +1,70 @@
+/* src/styles/variables.css */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Color Palette - Premium Dark Theme */
+  --bg-primary: #0a0f1d;
+  --bg-secondary: #111827;
+  --bg-tertiary: #1f2937;
+  
+  --text-primary: #f9fafb;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  
+  --accent-primary: #6366f1; /* Indigo */
+  --accent-primary-hover: #4f46e5;
+  --accent-primary-rgb: 99, 102, 241;
+  
+  /* Feature Specific Colors */
+  --color-income: #10b981; /* Emerald Green */
+  --color-income-rgb: 16, 185, 129;
+  --color-expense: #f43f5e; /* Rose Red */
+  --color-expense-rgb: 244, 63, 94;
+  --color-gold: #f59e0b; /* Amber/Gold */
+  --color-gold-rgb: 245, 158, 11;
+  --color-task: #8b5cf6; /* Violet */
+  --color-task-rgb: 139, 92, 246;
+
+  /* Card and Border Styles */
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-color-hover: rgba(255, 255, 255, 0.15);
+  --glass-bg: rgba(17, 24, 39, 0.7);
+  --glass-bg-hover: rgba(31, 41, 55, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.05);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  
+  /* Sizing and Layout */
+  --sidebar-width: 260px;
+  --header-height: 70px;
+  --bottom-nav-height: 64px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+  
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+  --transition-slow: 0.4s ease;
+
+  /* Fonts */
+  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Light Theme overrides (Optional, let's keep a dark-first premium theme as requested by UX guidelines) */
+[data-theme="light"] {
+  --bg-primary: #f3f4f6;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #e5e7eb;
+  
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  
+  --border-color: rgba(0, 0, 0, 0.08);
+  --border-color-hover: rgba(0, 0, 0, 0.15);
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-bg-hover: rgba(243, 244, 246, 0.9);
+  --glass-border: rgba(0, 0, 0, 0.05);
+  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08);
+}
