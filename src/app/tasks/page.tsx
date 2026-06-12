@@ -1,6 +1,6 @@
 'use client';
 
-import { useTaskStore, TaskData } from '@/store/useTaskStore';
+import { useTaskStore, TaskData, SubtaskData } from '@/store/useTaskStore';
 import { useEffect, useState } from 'react';
 import { 
   Plus, 
@@ -14,26 +14,47 @@ import {
   Info,
   TrendingUp,
   X,
-  PlusCircle,
   RotateCcw,
-  Sparkles
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  Edit2,
+  ListTodo,
+  Tag
 } from 'lucide-react';
 
 export default function TasksPage() {
   const { tasks, fetchTasks, addTask, updateTask, deleteTask } = useTaskStore();
   const [mounted, setMounted] = useState(false);
 
-  // Form State
+  // Add Form State
   const [isOpenForm, setIsOpenForm] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [category, setCategory] = useState('Cá nhân');
   const [dueDate, setDueDate] = useState('');
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [formSubtasks, setFormSubtasks] = useState<{ title: string; completed: boolean }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Edit Form State
+  const [editingTask, setEditingTask] = useState<TaskData | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editPriority, setEditPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [editCategory, setEditCategory] = useState('Cá nhân');
+  const [editDueDate, setEditDueDate] = useState('');
+  const [editSubtasks, setEditSubtasks] = useState<{ _id?: string; title: string; completed: boolean }[]>([]);
+  const [editNewSubtaskTitle, setEditNewSubtaskTitle] = useState('');
+
+  // Expandable Checklist IDs
+  const [expandedTaskIds, setExpandedTaskIds] = useState<{ [key: string]: boolean }>({});
 
   // Filter State
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -41,10 +62,45 @@ export default function TasksPage() {
     fetchTasks();
   }, [fetchTasks]);
 
+  // URL Parameter trigger on load
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('openForm') === 'true') {
+        setIsOpenForm(true);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
+
   if (!mounted) {
     return <div style={{ color: 'var(--text-secondary)' }}>Đang tải phân hệ công việc...</div>;
   }
 
+  // Categories list
+  const categoriesList = ['Cá nhân', 'Công việc', 'Tài chính', 'Học tập', 'Sức khỏe', 'Khác'];
+
+  // Expand checklist toggler
+  const toggleExpandChecklist = (taskId: string) => {
+    setExpandedTaskIds(prev => ({
+      ...prev,
+      [taskId]: !prev[taskId]
+    }));
+  };
+
+  // Add subtask to local form list
+  const handleAddSubtaskToForm = () => {
+    if (!newSubtaskTitle.trim()) return;
+    setFormSubtasks([...formSubtasks, { title: newSubtaskTitle.trim(), completed: false }]);
+    setNewSubtaskTitle('');
+  };
+
+  // Remove subtask from local form list
+  const handleRemoveSubtaskFromForm = (index: number) => {
+    setFormSubtasks(formSubtasks.filter((_, i) => i !== index));
+  };
+
+  // Task creation submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || isSubmitting) return;
@@ -56,17 +112,82 @@ export default function TasksPage() {
         description,
         status: 'todo',
         priority,
-        dueDate: dueDate ? new Date(dueDate).toISOString() : undefined
+        category,
+        dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+        subtasks: formSubtasks
       });
-      // Reset Form
+      // Reset Add Form
       setTitle('');
       setDescription('');
       setDueDate('');
+      setCategory('Cá nhân');
+      setFormSubtasks([]);
       setIsOpenForm(false);
     } catch (err) {
       console.error(err);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Task inline toggle subtask complete check
+  const handleToggleSubtask = async (task: TaskData, subtaskIndex: number) => {
+    if (!task._id || !task.subtasks) return;
+
+    const updatedSubtasks = task.subtasks.map((sub, idx) => {
+      if (idx === subtaskIndex) {
+        return { ...sub, completed: !sub.completed };
+      }
+      return sub;
+    });
+
+    try {
+      await updateTask(task._id, { subtasks: updatedSubtasks });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Activate task edit mode
+  const handleStartEdit = (task: TaskData) => {
+    setEditingTask(task);
+    setEditTitle(task.title);
+    setEditDescription(task.description || '');
+    setEditPriority(task.priority);
+    setEditCategory(task.category || 'Cá nhân');
+    setEditDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '');
+    setEditSubtasks(task.subtasks || []);
+  };
+
+  // Add subtask inside editing task
+  const handleAddSubtaskInEdit = () => {
+    if (!editNewSubtaskTitle.trim()) return;
+    setEditSubtasks([...editSubtasks, { title: editNewSubtaskTitle.trim(), completed: false }]);
+    setEditNewSubtaskTitle('');
+  };
+
+  // Remove subtask inside editing task
+  const handleRemoveSubtaskInEdit = (index: number) => {
+    setEditSubtasks(editSubtasks.filter((_, i) => i !== index));
+  };
+
+  // Submit task updates
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTask?._id || !editTitle) return;
+
+    try {
+      await updateTask(editingTask._id, {
+        title: editTitle,
+        description: editDescription,
+        priority: editPriority,
+        category: editCategory,
+        dueDate: editDueDate ? new Date(editDueDate).toISOString() : undefined,
+        subtasks: editSubtasks
+      });
+      setEditingTask(null);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -93,11 +214,12 @@ export default function TasksPage() {
     }
   };
 
-  // Filter logic
+  // Filter list
   const filteredTasks = tasks.filter((task) => {
     const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           task.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
+    const matchesCategory = categoryFilter === 'all' || task.category === categoryFilter;
     
     let matchesStatus = true;
     if (statusFilter === 'pending') {
@@ -106,10 +228,13 @@ export default function TasksPage() {
       matchesStatus = task.status === 'done';
     }
 
-    return matchesSearch && matchesPriority && matchesStatus;
+    return matchesSearch && matchesPriority && matchesCategory && matchesStatus;
   });
 
-  // Timeline Grouping
+  // Unique categories list from existing tasks for filter options
+  const uniqueCategories = Array.from(new Set(tasks.map(t => t.category || 'Cá nhân')));
+
+  // Timeline groups
   const getTimelineGroups = () => {
     const todayStr = new Date().toISOString().split('T')[0];
     const todayTime = new Date(todayStr).getTime();
@@ -120,7 +245,7 @@ export default function TasksPage() {
     const noDueDate: TaskData[] = [];
     const completed: TaskData[] = [];
 
-    // Sort filtered tasks chronologically
+    // Sort chronologically
     const sorted = [...filteredTasks].sort((a, b) => {
       if (!a.dueDate) return 1;
       if (!b.dueDate) return -1;
@@ -158,11 +283,11 @@ export default function TasksPage() {
   const getPriorityStyle = (pri: string) => {
     switch (pri) {
       case 'high':
-        return { background: 'rgba(244, 63, 94, 0.15)', color: 'var(--color-expense)', dotColor: 'var(--color-expense)' };
+        return { background: 'rgba(244, 63, 94, 0.12)', color: 'var(--color-expense)', dotColor: 'var(--color-expense)' };
       case 'medium':
-        return { background: 'rgba(245, 158, 11, 0.15)', color: 'var(--color-gold)', dotColor: 'var(--color-gold)' };
+        return { background: 'rgba(245, 158, 11, 0.12)', color: 'var(--color-gold)', dotColor: 'var(--color-gold)' };
       default:
-        return { background: 'rgba(16, 185, 129, 0.15)', color: 'var(--color-income)', dotColor: 'var(--color-income)' };
+        return { background: 'rgba(16, 185, 129, 0.12)', color: 'var(--color-income)', dotColor: 'var(--color-income)' };
     }
   };
 
@@ -174,20 +299,32 @@ export default function TasksPage() {
     }
   };
 
-  // Stats for the general view
-  const totalCount = tasks.length;
-  const completedCount = tasks.filter(t => t.status === 'done').length;
-  const todoCount = tasks.filter(t => t.status === 'todo').length;
-  const inProgressCount = tasks.filter(t => t.status === 'in_progress').length;
+  const getCategoryColor = (cat: string) => {
+    switch (cat) {
+      case 'Công việc': return '#6366f1';
+      case 'Tài chính': return '#10b981';
+      case 'Học tập': return '#8b5cf6';
+      case 'Sức khỏe': return '#f43f5e';
+      default: return '#f59e0b';
+    }
+  };
 
-  // Render a Single Task in the Timeline
+  // Render task items
   const renderTimelineItem = (task: TaskData) => {
     const priStyle = getPriorityStyle(task.priority);
     const isCompleted = task.status === 'done';
+    
+    // Subtask calculations
+    const subtasks = task.subtasks || [];
+    const totalSub = subtasks.length;
+    const completedSub = subtasks.filter(s => s.completed).length;
+    const subPercent = totalSub > 0 ? Math.round((completedSub / totalSub) * 100) : 0;
+
+    const isExpanded = !!expandedTaskIds[task._id || ''];
 
     return (
       <div key={task._id} className="timeline-item animate-fade-in">
-        {/* The Timeline dot representing priority/status */}
+        {/* Timeline dot */}
         <div 
           className="timeline-dot" 
           style={{ 
@@ -196,9 +333,10 @@ export default function TasksPage() {
           }} 
         />
         
-        <div className="timeline-card">
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyItems: 'space-between', gap: '16px' }}>
-            {/* Completion checkbox check */}
+        <div className="timeline-card" style={{ borderLeft: `4px solid ${getCategoryColor(task.category)}` }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyItems: 'space-between', gap: '14px' }}>
+            
+            {/* Action checkbox status check */}
             <button 
               onClick={() => task._id && handleToggleStatus(task._id, task.status)}
               style={{ 
@@ -207,18 +345,17 @@ export default function TasksPage() {
                 border: 'none', 
                 color: isCompleted ? 'var(--color-income)' : 'var(--text-muted)',
                 marginTop: '3px',
-                transition: 'color var(--transition-fast)'
+                padding: 0
               }}
-              title={isCompleted ? "Đánh dấu là chưa hoàn thành" : "Đánh dấu là đã hoàn thành"}
             >
-              <CheckCircle2 size={20} fill={isCompleted ? 'rgba(16, 185, 129, 0.15)' : 'transparent'} />
+              <CheckCircle2 size={22} fill={isCompleted ? 'rgba(16, 185, 129, 0.15)' : 'transparent'} />
             </button>
 
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <div className="flex-between" style={{ flexWrap: 'wrap', gap: '8px' }}>
                 <h4 style={{ 
-                  fontSize: '1rem', 
-                  fontWeight: 600, 
+                  fontSize: '1.025rem', 
+                  fontWeight: 700,
                   textDecoration: isCompleted ? 'line-through' : 'none',
                   color: isCompleted ? 'var(--text-muted)' : 'var(--text-primary)',
                   wordBreak: 'break-word'
@@ -227,14 +364,19 @@ export default function TasksPage() {
                 </h4>
                 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="badge" style={priStyle}>
+                  <span className="badge" style={{ 
+                    background: 'rgba(255, 255, 255, 0.05)', 
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--border-color)',
+                    fontSize: '0.7rem' 
+                  }}>
+                    <Tag size={10} style={{ marginRight: '4px', color: getCategoryColor(task.category) }} />
+                    {task.category}
+                  </span>
+                  
+                  <span className="badge" style={{ ...priStyle, fontSize: '0.7rem' }}>
                     {getPriorityLabel(task.priority)}
                   </span>
-                  {task.status === 'in_progress' && (
-                    <span className="badge" style={{ background: 'rgba(139, 92, 246, 0.15)', color: 'var(--color-task)' }}>
-                      Đang làm
-                    </span>
-                  )}
                 </div>
               </div>
 
@@ -250,6 +392,85 @@ export default function TasksPage() {
                 </p>
               )}
 
+              {/* Subtask Progress indicator */}
+              {totalSub > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
+                  <div className="flex-between" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <ListTodo size={12} />
+                       Checklist việc phụ: {completedSub}/{totalSub}
+                    </span>
+                    <span>{subPercent}%</span>
+                  </div>
+                  <div style={{ width: '100%', height: '4px', background: 'var(--border-color)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
+                    <div style={{ width: `${subPercent}%`, height: '100%', background: 'var(--color-task)', transition: 'width 0.3s ease' }} />
+                  </div>
+
+                  {/* Expand Checklist toggler */}
+                  <button 
+                    onClick={() => toggleExpandChecklist(task._id!)}
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '4px', 
+                      background: 'transparent', 
+                      border: 'none', 
+                      fontSize: '0.75rem', 
+                      color: 'var(--accent-primary)',
+                      cursor: 'pointer',
+                      padding: '4px 0',
+                      alignSelf: 'flex-start'
+                    }}
+                  >
+                    {isExpanded ? (
+                      <>Thu gọn checklist <ChevronUp size={12} /></>
+                    ) : (
+                      <>Xem checklist chi tiết <ChevronDown size={12} /></>
+                    )}
+                  </button>
+
+                  {/* Expanded Subtask List */}
+                  {isExpanded && (
+                    <div style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '8px', 
+                      padding: '12px', 
+                      background: 'rgba(255,255,255,0.015)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 'var(--radius-sm)',
+                      marginTop: '6px'
+                    }}>
+                      {subtasks.map((sub, sIdx) => (
+                        <label key={sub._id || sIdx} style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '10px', 
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
+                          color: sub.completed ? 'var(--text-muted)' : 'var(--text-secondary)'
+                        }}>
+                          <input 
+                            type="checkbox" 
+                            checked={sub.completed}
+                            onChange={() => handleToggleSubtask(task, sIdx)}
+                            style={{ 
+                              cursor: 'pointer',
+                              width: '14px',
+                              height: '14px',
+                              accentColor: 'var(--color-task)'
+                            }}
+                          />
+                          <span style={{ textDecoration: sub.completed ? 'line-through' : 'none' }}>{sub.title}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                </div>
+              )}
+
+              {/* Task Footer Actions */}
               <div className="flex-between" style={{ marginTop: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Calendar size={12} />
@@ -263,7 +484,7 @@ export default function TasksPage() {
                       className="task-action-btn"
                       style={{ fontSize: '0.75rem', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}
                     >
-                      Bắt đầu làm <ChevronRight size={12} />
+                      Làm ngay <ChevronRight size={12} />
                     </button>
                   )}
                   {isCompleted && (
@@ -271,11 +492,19 @@ export default function TasksPage() {
                       onClick={() => task._id && handleToggleStatus(task._id, task.status)}
                       className="task-action-btn"
                       style={{ fontSize: '0.75rem', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                      title="Làm lại công việc này"
                     >
                       <RotateCcw size={12} /> Làm lại
                     </button>
                   )}
+                  
+                  <button 
+                    onClick={() => handleStartEdit(task)}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '4px' }}
+                    title="Chỉnh sửa công việc"
+                  >
+                    <Edit2 size={13} className="hover-accent-icon" />
+                  </button>
+
                   <button 
                     onClick={() => task._id && handleDelete(task._id)}
                     style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '4px' }}
@@ -293,6 +522,12 @@ export default function TasksPage() {
     );
   };
 
+  // Stats sums
+  const totalTasks = tasks.length;
+  const completedTasks = tasks.filter(t => t.status === 'done').length;
+  const todoCount = tasks.filter(t => t.status === 'todo').length;
+  const inProgressCount = tasks.filter(t => t.status === 'in_progress').length;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       
@@ -301,14 +536,14 @@ export default function TasksPage() {
         <div className="glass-card flex-between" style={{ padding: '16px' }}>
           <div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>TỔNG CÔNG VIỆC</p>
-            <h3 style={{ fontSize: '1.45rem', marginTop: '4px' }}>{totalCount}</h3>
+            <h3 style={{ fontSize: '1.45rem', marginTop: '4px' }}>{totalTasks}</h3>
           </div>
           <Clock size={24} style={{ color: 'var(--text-muted)' }} />
         </div>
         
         <div className="glass-card flex-between" style={{ padding: '16px', borderLeft: '3px solid var(--color-expense)' }}>
           <div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>CẦN THỰC HIỆN</p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>CẦN LÀM</p>
             <h3 style={{ fontSize: '1.45rem', marginTop: '4px', color: 'var(--color-expense)' }}>{todoCount}</h3>
           </div>
           <AlertCircle size={24} style={{ color: 'var(--color-expense)' }} />
@@ -316,7 +551,7 @@ export default function TasksPage() {
 
         <div className="glass-card flex-between" style={{ padding: '16px', borderLeft: '3px solid var(--color-gold)' }}>
           <div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>ĐANG THỰC HIỆN</p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>ĐANG LÀM</p>
             <h3 style={{ fontSize: '1.45rem', marginTop: '4px', color: 'var(--color-gold)' }}>{inProgressCount}</h3>
           </div>
           <TrendingUp size={24} style={{ color: 'var(--color-gold)' }} />
@@ -324,14 +559,14 @@ export default function TasksPage() {
 
         <div className="glass-card flex-between" style={{ padding: '16px', borderLeft: '3px solid var(--color-income)' }}>
           <div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>ĐÃ HOÀN THÀNH</p>
-            <h3 style={{ fontSize: '1.45rem', marginTop: '4px', color: 'var(--color-income)' }}>{completedCount}</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>ĐÃ XONG</p>
+            <h3 style={{ fontSize: '1.45rem', marginTop: '4px', color: 'var(--color-income)' }}>{completedTasks}</h3>
           </div>
           <CheckCircle2 size={24} style={{ color: 'var(--color-income)' }} />
         </div>
       </div>
 
-      {/* Floating Action Button for Mobile form toggle */}
+      {/* Floating Action Button for Mobile Add */}
       <button 
         className="btn btn-primary flex-center mobile-only-btn" 
         onClick={() => setIsOpenForm(true)}
@@ -341,10 +576,10 @@ export default function TasksPage() {
         Thêm công việc
       </button>
 
-      {/* 2. Main Layout Grid */}
+      {/* 2. Main layout */}
       <div className="tasks-layout">
         
-        {/* Timeline Panel */}
+        {/* Left Column: Timeline Panel */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', flex: 1 }}>
           
           {/* Filters Bar */}
@@ -384,12 +619,27 @@ export default function TasksPage() {
                 </select>
               </div>
 
-              <div className="form-group" style={{ margin: 0, gridColumn: 'span 2' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Danh mục</label>
+                <select 
+                  className="form-input" 
+                  value={categoryFilter} 
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}
+                >
+                  <option value="all">Tất cả danh mục</option>
+                  {uniqueCategories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Tìm kiếm tiêu đề/mô tả</label>
                 <input 
                   type="text" 
                   className="form-input" 
-                  placeholder="Nhập tiêu đề hoặc mô tả..." 
+                  placeholder="Nhập từ khóa tìm kiếm..." 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}
@@ -409,7 +659,6 @@ export default function TasksPage() {
               </div>
             ) : (
               <div className="timeline-container">
-                {/* Vertical line track */}
                 <div className="timeline-line" />
 
                 {/* Section: Overdue */}
@@ -468,7 +717,7 @@ export default function TasksPage() {
 
         </div>
 
-        {/* Form panel: Desktop side-by-side / Mobile slide-up bottom sheet */}
+        {/* Right Column: Add Form panel (Desktop side-by-side / Mobile slide-up sheet) */}
         <div className={`tasks-side-panel ${isOpenForm ? 'active' : ''}`}>
           <div className="glass-card" style={{ position: 'sticky', top: 'calc(var(--header-height) + 24px)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div className="flex-between">
@@ -478,7 +727,7 @@ export default function TasksPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Tên công việc</label>
@@ -507,6 +756,20 @@ export default function TasksPage() {
               </div>
 
               <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Danh mục</label>
+                <select 
+                  className="form-input"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  required
+                >
+                  {categoriesList.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Hạn chót (Tùy chọn)</label>
                 <input 
                   type="date" 
@@ -523,8 +786,58 @@ export default function TasksPage() {
                   placeholder="Mô tả cụ thể nhiệm vụ..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  style={{ minHeight: '80px', resize: 'vertical' }}
+                  style={{ minHeight: '60px', resize: 'vertical' }}
                 />
+              </div>
+
+              {/* Subtask Input Field inside Form */}
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Thêm checklist việc phụ (Tùy chọn)</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Tên việc phụ..." 
+                    value={newSubtaskTitle}
+                    onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary"
+                    onClick={handleAddSubtaskToForm}
+                    style={{ padding: '10px 14px' }}
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+                
+                {/* Form Subtask Checklist Render */}
+                {formSubtasks.length > 0 && (
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: '6px', 
+                    marginTop: '8px', 
+                    padding: '10px', 
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-sm)' 
+                  }}>
+                    {formSubtasks.map((sub, sIdx) => (
+                      <div key={sIdx} className="flex-between" style={{ fontSize: '0.8rem' }}>
+                        <span>• {sub.title}</span>
+                        <button 
+                          type="button" 
+                          onClick={() => handleRemoveSubtaskFromForm(sIdx)}
+                          style={{ background: 'transparent', border: 'none', color: 'var(--color-expense)', cursor: 'pointer' }}
+                        >
+                          Xóa
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <button 
@@ -533,12 +846,167 @@ export default function TasksPage() {
                 style={{ width: '100%', marginTop: '8px' }}
                 disabled={isSubmitting}
               >
-                {isSubmitting ? 'Đang thêm...' : 'Tạo công việc'}
+                {isSubmitting ? 'Đang tạo...' : 'Tạo công việc'}
               </button>
 
             </form>
           </div>
         </div>
+
+        {/* Slide-out Edit Modal Panel */}
+        {editingTask && (
+          <div className="edit-task-overlay">
+            <div className="edit-task-panel glass-card">
+              <div className="flex-between" style={{ marginBottom: '20px' }}>
+                <h3 style={{ fontSize: '1.2rem' }}>Chỉnh sửa công việc</h3>
+                <button 
+                  onClick={() => setEditingTask(null)}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                >
+                  <X size={22} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Tên công việc</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Độ ưu tiên</label>
+                  <select 
+                    className="form-input"
+                    value={editPriority}
+                    onChange={(e) => setEditPriority(e.target.value as any)}
+                  >
+                    <option value="low">Thấp</option>
+                    <option value="medium">Trung bình</option>
+                    <option value="high">Khẩn cấp</option>
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Danh mục</label>
+                  <select 
+                    className="form-input"
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value)}
+                  >
+                    {categoriesList.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Hạn chót</label>
+                  <input 
+                    type="date" 
+                    className="form-input" 
+                    value={editDueDate}
+                    onChange={(e) => setEditDueDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Mô tả chi tiết</label>
+                  <textarea 
+                    className="form-input" 
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    style={{ minHeight: '60px', resize: 'vertical' }}
+                  />
+                </div>
+
+                {/* Subtask editing section */}
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Quản lý việc phụ (Checklist)</label>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Thêm việc phụ mới..." 
+                      value={editNewSubtaskTitle}
+                      onChange={(e) => setEditNewSubtaskTitle(e.target.value)}
+                      style={{ flex: 1 }}
+                    />
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary"
+                      onClick={handleAddSubtaskInEdit}
+                      style={{ padding: '10px 14px' }}
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+
+                  {editSubtasks.length > 0 && (
+                    <div style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '8px', 
+                      maxHeight: '150px', 
+                      overflowY: 'auto',
+                      padding: '10px',
+                      background: 'rgba(0,0,0,0.1)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 'var(--radius-sm)'
+                    }}>
+                      {editSubtasks.map((sub, sIdx) => (
+                        <div key={sub._id || sIdx} className="flex-between">
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', cursor: 'pointer' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={sub.completed}
+                              onChange={() => {
+                                const updated = editSubtasks.map((s, si) => si === sIdx ? { ...s, completed: !s.completed } : s);
+                                setEditSubtasks(updated);
+                              }}
+                              style={{ accentColor: 'var(--color-task)' }}
+                            />
+                            <span style={{ textDecoration: sub.completed ? 'line-through' : 'none' }}>{sub.title}</span>
+                          </label>
+                          <button 
+                            type="button"
+                            onClick={() => handleRemoveSubtaskInEdit(sIdx)}
+                            style={{ background: 'transparent', border: 'none', color: 'var(--color-expense)', cursor: 'pointer', fontSize: '0.75rem' }}
+                          >
+                            Xóa
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary" 
+                    style={{ flex: 1 }}
+                  >
+                    Lưu thay đổi
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    onClick={() => setEditingTask(null)}
+                  >
+                    Hủy
+                  </button>
+                </div>
+
+              </form>
+            </div>
+          </div>
+        )}
 
       </div>
 
@@ -557,7 +1025,7 @@ export default function TasksPage() {
 
         .task-action-btn {
           cursor: pointer;
-          background: rgba(255, 255, 255, 0.05);
+          background: rgba(255, 255, 255, 0.04);
           border: 1px solid var(--border-color);
           color: var(--text-secondary);
           border-radius: 6px;
@@ -567,7 +1035,7 @@ export default function TasksPage() {
         }
 
         [data-theme="light"] .task-action-btn {
-          background: rgba(0, 0, 0, 0.03);
+          background: rgba(0, 0, 0, 0.02);
         }
 
         .task-action-btn:hover {
@@ -577,15 +1045,19 @@ export default function TasksPage() {
         }
 
         [data-theme="light"] .task-action-btn:hover {
-          background: rgba(0, 0, 0, 0.06);
+          background: rgba(0, 0, 0, 0.05);
         }
 
-        .hover-red-icon {
+        .hover-red-icon, .hover-accent-icon {
           transition: color var(--transition-fast);
         }
 
         .hover-red-icon:hover {
           color: var(--color-expense) !important;
+        }
+
+        .hover-accent-icon:hover {
+          color: var(--accent-primary) !important;
         }
 
         .close-form-btn {
@@ -594,6 +1066,36 @@ export default function TasksPage() {
           border: none;
           color: var(--text-secondary);
           cursor: pointer;
+        }
+
+        /* Edit Overlay Styles */
+        .edit-task-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          background: rgba(0, 0, 0, 0.6);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 200;
+        }
+
+        .edit-task-panel {
+          width: 90%;
+          max-width: 500px;
+          max-height: 90vh;
+          overflow-y: auto;
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-color);
+          animation: scaleUp 0.2s ease forwards;
+        }
+
+        @keyframes scaleUp {
+          from { transform: scale(0.95); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
         }
 
         @media (max-width: 992px) {
@@ -606,7 +1108,7 @@ export default function TasksPage() {
             bottom: 0;
             left: 0;
             width: 100vw;
-            height: 80vh;
+            height: 85vh;
             background: var(--bg-secondary);
             border-top: 1px solid var(--border-color);
             border-top-left-radius: var(--radius-lg);
@@ -642,6 +1144,13 @@ export default function TasksPage() {
             box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
             border-radius: var(--radius-full);
             padding: 14px 24px;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .filters-grid {
+            grid-template-columns: 1fr;
+            gap: 10px;
           }
         }
       `}</style>
