@@ -182,7 +182,7 @@
 
   .main-content {
     margin-left: 0; /* Full width */
-    padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 16px); /* Space for bottom nav */
+    padding-bottom: 0;
   }
 
   .header {
@@ -196,6 +196,7 @@
 
   .page-container {
     padding: 16px;
+    padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 32px); /* Space for bottom nav directly in the page scroll view */
   }
 
   .bottom-nav {
